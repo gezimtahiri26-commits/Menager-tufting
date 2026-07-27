@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tufting Studio Manager</title>
+<style>
+* {
+box-sizing: border-box;
+margin: 0;
+padding: 0;
+font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+background-color: #eff0ee;
+color: #2b2b2b;
+padding: 30px 15px;
+}
+
+.container {
+max-width: 1000px;
+margin: auto;
+}
+
+.header-title {
+text-align: center;
+font-size: 32px;
+font-weight: 800;
+color: #2b579a;
+margin-bottom: 25px;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 12px;
+}
+
+/* FORM SECTION */
+.form-card {
+background: #ffffff;
+border: 1px solid #fffffa;
+border-radius: 12px;
+padding: 20px;
+box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+margin-bottom: 30px;
+}
+
+.form-grid {
+display: grid;
+grid-template-columns: 1fr 1fr 1fr;
+gap: 15px;
+margin-bottom: 15px;
+}
+
+.form-group-full {
+grid-column: span 3;
+margin-bottom: 15px;
+}
+
+label {
+display: block;
+font-size: 13px;
+font-weight: 700;
+color: #111;
+margin-bottom: 6px;
+}
+
+input[type="text"], input[type="number"], select, textarea {
+width: 100%;
+padding: 10px;
+border: 1px solid #e4e4dd;
+border-radius: 6px;
+background: #f4f4f0;
+font-size: 14px;
+color: #111;
+outline: none;
+}
+
+input:focus, select:focus, textarea:focus {
+border-color: #2b579a;
+background: #ffffff;
+}
+
+textarea {
+resize: vertical;
+min-height: 70px;
+}
+
+.btn-submit {
+grid-column: span 3;
+background: #2b579a;
+color: white;
+border: none;
+padding: 12px;
+font-size: 16px;
+font-weight: 700;
+border-radius: 6px;
+cursor: pointer;
+transition: 0.2s;
+width: 100%;
+}
+
+.btn-submit:hover {
+background: #1e3f70;
+}
+
+.btn-cancel {
+background: #7f8c8d;
+color: white;
+border: none;
+padding: 12px;
+font-size: 16px;
+font-weight: 700;
+border-radius: 6px;
+cursor: pointer;
+display: none;
+margin-top: 8px;
+width: 100%;
+}
+
+/* TABLE SECTION */
+.table-card {
+background: #fffffd;
+border: 1px solid #f8f8f3;
+border-radius: 12px;
+padding: 20px;
+box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+overflow-x: auto;
+}
+
+.table-title {
+font-size: 22px;
+font-weight: 800;
+color: #2b2b2b;
+margin-bottom: 15px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+text-align: left;
+}
+
+th {
+padding: 10px;
+font-size: 13px;
+font-weight: 700;
+color: #222;
+border-bottom: 2px solid #b5b5ad;
+}
+
+td {
+padding: 12px 10px;
+font-size: 13px;
+border-bottom: 1px solid #c8c8c0;
+vertical-align: top;
+white-space: pre-line;
+}
+
+.price-text {
+font-weight: 800;
+color: #111;
+}
+
+/* BUTTONS IN TABLE */
+.action-btns {
+display: flex;
+flex-direction: column;
+gap: 5px;
+width: 90px;
+}
+
+.btn-table {
+border: none;
+padding: 6px 10px;
+border-radius: 5px;
+color: white;
+font-weight: bold;
+font-size: 11px;
+cursor: pointer;
+text-align: center;
+text-decoration: none;
+display: inline-block;
+transition: 0.2s;
+}
+
+.btn-edit { background: #27ae60; }
+.btn-edit:hover { background: #1e8449; }
+
+.btn-delete { background: #c0392b; }
+.btn-delete:hover { background: #962d22; }
+
+.btn-photo { background: #2980b9; }
+.btn-photo:hover { background: #1f618d; }
+
+.img-preview {
+width: 45px;
+height: 45px;
+object-fit: cover;
+border-radius: 6px;
+border: 1px solid #f3f3f3;
+}
+
+@media (max-width: 768px) {
+.form-grid { grid-template-columns: 1fr; }
+.form-group-full, .btn-submit { grid-column: span 1; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1 class="header-title">🧵 Tufting Studio Manager</h1>
+
+<!-- FORM SECTION -->
+<div class="form-card">
+<form id="projectForm">
+<input type="hidden" id="editIndex" value="-1">
+
+<div class="form-grid">
+<div>
+<label>Emri i Projektit</label>
+<input type="text" id="pName" placeholder="p.sh. Tase Kaffe" required>
+</div>
+<div>
+<label>Lloji i Fijes</label>
+<select id="pYarnType">
+<option value="100% Akrilik">100% Akrilik</option>
+<option value="100% Lesh (Wolle)">100% Lesh (Wolle)</option>
+<option value="Përzierje (Mischgarn)">Përzierje (Mischgarn)</option>
+<option value="Pambuk (Baumwolle)">Pambuk (Baumwolle)</option>
+</select>
+</div>
+<div>
+<label>Foto e Projektit (Opsionale)</label>
+<input type="file" id="pImgFile" accept="image/*">
+</div>
+</div>
+
+<div class="form-group-full">
+<label>Ngjyrat, Kodet dhe Marka/Dyqani (Detaje)</label>
+<textarea id="pDetails" placeholder="Kuqe = 008 = Basic Soft&#10;Kafe = 44 = Superpreis"></textarea>
+</div>
+
+<div class="form-grid">
+<div>
+<label>Sasia e Fijes (gram)</label>
+<input type="text" id="pWeight" placeholder="p.sh. 500">
+</div>
+<div>
+<label>Kostoja e Materialit (€)</label>
+<input type="text" id="pCost" placeholder="p.sh. 15.50">
+</div>
+<div>
+<label>Çmimi i Shitjes (€)</label>
+<input type="text" id="pPrice" placeholder="p.sh. 70.00">
+</div>
+</div>
+
+<button type="submit" class="btn-submit" id="submitBtn">+ Rregjistro Projektin</button>
+<button type="button" class="btn-cancel" id="cancelBtn" onclick="resetForm()">✖ Anulo Ndryshimin</button>
+</form>
+</div>
+
+<!-- TABLE SECTION -->
+<div class="table-card">
+<h2 class="table-title">📋 Katalogu i Projekteve</h2>
+<table>
+<thead>
+<tr>
+<th>Foto</th>
+<th>Projekti</th>
+<th>Fija</th>
+<th>Detajet e Fijeve</th>
+<th>Pesha</th>
+<th>Kosto</th>
+<th>Çmimi</th>
+<th>Veprime</th>
+</tr>
+</thead>
+<tbody id="projectTableBody">
+<!-- Projektet do të shfaqen këtu -->
+</tbody>
+</table>
+</div>
+</div>
+
+<script>
+// Të dhënat fillestare nëse nuk ka asgjë të ruajtur
+const defaultData = [
+{
+name: "Tase Kaffe",
+yarn: "100% Akrilik",
+details: "kuqe = 008 - Basic soft acryl =\nkaffe = 44 -Super preis = Müller\nBardh =001 -Baby wolle = Rossman\nZez = 589786 Action =",
+weight: "100 g",
+cost: "4.50 €",
+price: "20.00 €",
+img: ""
+},
+{
+name: "Tase kaffe",
+yarn: "100% Akrilik",
+details: "Pink = ........=bravo = Galeria\nBlu = 72= super preis =\nJeshile = ...........=Bravo = Galeria",
+weight: "100 g",
+cost: "4.50 €",
+price: "20.00 €",
+img: ""
+},
+{
+name: "Briosh",
+yarn: "100% Akrilik",
+details: "Bezh = 08312 = Bravo = Galeria\nPistacio = 69 # =Kreaho = Online",
+weight: "200 g",
+cost: "5.00 €",
+price: "30.00 €",
+img: ""
+},
+{
+name: "Marinkefer",
+yarn: "100% Akrilik",
+details: "Zez = 589786 = Action\nkuqe = 008 = Basic soft",
+weight: "400 g",
+cost: "5.00 €",
+price: "35.00 €",
+img: ""
+},
+{
+name: "Buskuq",
+yarn: "100% Akrilik",
+details: "kuqe e hapur =\nBezh =\nzez = 589786 = Basic soft",
+weight: "100 g",
+cost: "2.00 €",
+price: "25.00 €",
+img: ""
+}
+];
+
+let projects = JSON.parse(localStorage.getItem('tuftingManagerData')) || defaultData;
+
+function renderTable() {
+const tbody = document.getElementById('projectTableBody');
+tbody.innerHTML = '';
+
+projects.forEach((item, index) => {
+const imgTag = item.img
+? `<img src="${item.img}" class="img-preview" alt="Foto">`
+: `<span style="color:#aaa; font-style:italic;">Pa foto</span>`;
+
+tbody.innerHTML += `
+<tr>
+<td>${imgTag}</td>
+<td><strong>${item.name}</strong></td>
+<td>${item.yarn}</td>
+<td>${item.details}</td>
+<td>${item.weight}</td>
+<td>${item.cost}</td>
+<td class="price-text">${item.price}</td>
+<td>
+<div class="action-btns">
+<button class="btn-table btn-edit" onclick="editProject(${index})">✏️ Ndrysho</button>
+<button class="btn-table btn-delete" onclick="deleteProject(${index})">🗑️ Fshi</button>
+</div>
+</td>
+</tr>
+`;
+});
+}
+
+// Ruan ose Përditëson projektin
+document.getElementById('projectForm').addEventListener('submit', function(e) {
+e.preventDefault();
+
+const editIdx = parseInt(document.getElementById('editIndex').value);
+const name = document.getElementById('pName').value;
+const yarn = document.getElementById('pYarnType').value;
+const details = document.getElementById('pDetails').value;
+let weight = document.getElementById('pWeight').value;
+let cost = document.getElementById('pCost').value;
+let price = document.getElementById('pPrice').value;
+const fileInput = document.getElementById('pImgFile');
+
+// Formatimi automatik i njësive
+if(weight && !weight.toLowerCase().includes('g')) weight += ' g';
+if(cost && !cost.includes('€')) cost += ' €';
+if(price && !price.includes('€')) price += ' €';
+
+const saveAction = (imgData) => {
+const projectObj = {
+name,
+yarn,
+details,
+weight: weight || '0 g',
+cost: cost || '0.00 €',
+price: price || '0.00 €',
+img: imgData || (editIdx !== -1 ? projects[editIdx].img : '')
+};
+
+if (editIdx === -1) {
+// Shto të ri
+projects.push(projectObj);
+} else {
+// Përditëso ekzistuesin
+projects[editIdx] = projectObj;
+}
+
+localStorage.setItem('tuftingManagerData', JSON.stringify(projects));
+renderTable();
+resetForm();
+};
+
+if (fileInput.files && fileInput.files[0]) {
+const reader = new FileReader();
+reader.onload = function(e) {
+saveAction(e.target.result);
+};
+reader.readAsDataURL(fileInput.files[0]);
+} else {
+saveAction('');
+}
+});
+
+// Kalon të dhënat te forma për t'i ndryshuar
+function editProject(index) {
+const item = projects[index];
+
+document.getElementById('editIndex').value = index;
+document.getElementById('pName').value = item.name;
+document.getElementById('pYarnType').value = item.yarn;
+document.getElementById('pDetails').value = item.details;
+document.getElementById('pWeight').value = item.weight.replace(' g', '');
+document.getElementById('pCost').value = item.cost.replace(' €', '');
+document.getElementById('pPrice').value = item.price.replace(' €', '');
+
+// Ndrysho pamjen e butonit
+const submitBtn = document.getElementById('submitBtn');
+submitBtn.textContent = '💾 Ruaj Ndryshimet';
+submitBtn.style.background = '#27ae60';
+
+document.getElementById('cancelBtn').style.display = 'block';
+
+// Ngjitu lart te forma
+window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Anulo mënyrën e editimit
+function resetForm() {
+document.getElementById('projectForm').reset();
+document.getElementById('editIndex').value = -1;
+
+const submitBtn = document.getElementById('submitBtn');
+submitBtn.textContent = '+ Rregjistro Projektin';
+submitBtn.style.background = '#2b579a';
+
+document.getElementById('cancelBtn').style.display = 'none';
+}
+
+// Fshirja e projektit
+function deleteProject(index) {
+if (confirm("A je i sigurt që dëshiron ta fshish këtë projekt?")) {
+projects.splice(index, 1);
+localStorage.setItem('tuftingManagerData', JSON.stringify(projects));
+renderTable();
+if (parseInt(document.getElementById('editIndex').value) === index) {
+resetForm();
+}
+}
+}
+
+// Shfaq tabelën në fillim
+renderTable();
+</script>
+
+</body>
+</html>
