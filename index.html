@@ -1,508 +1,410 @@
-import os
-import socket
-import threading
-import datetime
-from PIL import Image, ImageTk
-import qrcode
-import customtkinter as ctk
-from flask import Flask, render_template_string, request, redirect, url_for
-
-# Konfigurimi i temës vizuale
-ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("blue")
-
-# ==========================================
-# 1. KONFIGURIMI I FLASK (SERVERI UEB)
-# ==========================================
-server_app = Flask(__name__)
-
-# Dosja ku ruhen fotot dhe videot
-UPLOAD_FOLDER = os.path.join(os.path.expanduser("~"), "Pictures", "CuffiTransfer")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-server_app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Numëruesit e statistikave
-stats = {
-    "photos_today": 0,
-    "videos_today": 0,
-    "total_mb": 0.0,
-    "total_transfers": 0
-}
-
-HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="sq">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cuffi Transfer</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<title>Tufting Studio Manager</title>
 <style>
-* {
-box-sizing: border-box;
-margin: 0;
-padding: 0;
-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+:root {
+--bg-color: #d8d8ce;
+--card-bg: #e6e6e0;
+--border-color: #c8c8c0;
+--text-dark: #1f2937;
+--primary-blue: #1d4ed8;
+--btn-green: #10b981;
+--btn-red: #ef4444;
 }
 
-body {
-background-color: #090d16;
-color: #f8fafc;
-display: flex;
-flex-direction: column;
-align-items: center;
-justify-content: center;
-min-height: 100vh;
-padding: 20px;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background-color: var(--bg-color); color: var(--text-dark); padding: 30px 15px; }
 
-.container {
-width: 100%;
-max-width: 420px;
-background: linear-gradient(145deg, #131b2e, #0d1322);
-border: 1px solid #1e293b;
-border-radius: 24px;
-padding: 30px 24px;
-box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+.container { max-width: 1000px; margin: auto; }
+
+.header-title {
 text-align: center;
-position: relative;
-overflow: hidden;
-}
-
-.container::before {
-content: '';
-position: absolute;
-top: 0;
-left: 0;
-right: 0;
-height: 4px;
-background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
-}
-
-.logo-icon {
-width: 70px;
-height: 70px;
-background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-border-radius: 20px;
+font-size: 28px;
+font-weight: 800;
+color: #1e3a8a;
+margin-bottom: 25px;
 display: flex;
-align-items: center;
-justify-content: center;
-margin: 0 auto 20px;
-font-size: 30px;
-color: white;
-box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
-}
-
-h1 {
-font-size: 24px;
-font-weight: 700;
-color: #ffffff;
-margin-bottom: 8px;
-letter-spacing: -0.5px;
-}
-
-p {
-color: #64748b;
-font-size: 14px;
-line-height: 1.5;
-margin-bottom: 28px;
-}
-
-input[type="file"] {
-display: none;
-}
-
-.file-label {
-background: #1e293b;
-border: 2px dashed #334155;
-color: #e2e8f0;
-padding: 22px 15px;
-border-radius: 16px;
-cursor: pointer;
-display: flex;
-flex-direction: column;
 align-items: center;
 justify-content: center;
 gap: 10px;
-font-size: 15px;
-font-weight: 600;
-transition: all 0.3s ease;
-margin-bottom: 16px;
 }
 
-.file-label:active {
-transform: scale(0.98);
-border-color: #38bdf8;
-background: #162032;
+/* CARD CONTAINERS (Forma dhe Tabela me ngjyrë të njëjtë) */
+.card-box {
+background: var(--card-bg);
+border: 1px solid var(--border-color);
+border-radius: 14px;
+padding: 25px;
+margin-bottom: 25px;
+box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
-.file-label i {
-font-size: 28px;
-color: #38bdf8;
+.card-title {
+font-size: 20px;
+font-weight: 700;
+margin-bottom: 18px;
+display: flex;
+align-items: center;
+gap: 8px;
 }
+
+/* GRID FORM */
+.form-grid {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 15px;
+margin-bottom: 15px;
+}
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group.full-width { grid-column: span 3; }
+
+label { font-size: 13px; font-weight: 700; color: #374151; }
+
+input, select, textarea {
+width: 100%;
+padding: 10px 12px;
+border-radius: 8px;
+border: 1px solid #d1d5db;
+background: #f9fafb;
+font-size: 14px;
+outline: none;
+transition: 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+border-color: var(--primary-blue);
+background: #ffffff;
+box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+}
+
+textarea { resize: vertical; min-height: 70px; }
 
 .btn-submit {
 width: 100%;
-background: linear-gradient(135deg, #10b981, #059669);
+background: var(--primary-blue);
 color: white;
 border: none;
-padding: 16px;
-border-radius: 16px;
-font-size: 16px;
+padding: 12px;
+border-radius: 8px;
+font-size: 15px;
+font-weight: bold;
+cursor: pointer;
+transition: 0.2s;
+margin-top: 10px;
+}
+
+.btn-submit:hover { background: #1e40af; }
+
+/* TABLE DESIGN */
+.table-responsive { overflow-x: auto; }
+
+table {
+width: 100%;
+border-collapse: collapse;
+text-align: left;
+font-size: 14px;
+}
+
+th {
+border-bottom: 2px solid var(--border-color);
+padding: 12px 8px;
 font-weight: 700;
+}
+
+td {
+border-bottom: 1px solid var(--border-color);
+padding: 12px 8px;
+vertical-align: top;
+}
+
+.img-preview {
+width: 60px;
+height: 60px;
+object-fit: cover;
+border-radius: 8px;
+border: 1px solid #ccc;
+background: #fff;
+}
+
+.no-img {
+font-size: 12px;
+color: #6b7280;
+font-style: italic;
+}
+
+/* BUTTONS TABLE */
+.action-btns { display: flex; flex-direction: column; gap: 5px; }
+
+.btn-action {
+border: none;
+padding: 6px 12px;
+border-radius: 6px;
+color: white;
+font-weight: bold;
+font-size: 12px;
 cursor: pointer;
 display: flex;
 align-items: center;
 justify-content: center;
-gap: 10px;
-box-shadow: 0 10px 20px rgba(16, 185, 129, 0.25);
-transition: all 0.3s ease;
+gap: 4px;
 }
 
-.btn-submit:active {
-transform: scale(0.98);
-box-shadow: 0 5px 10px rgba(16, 185, 129, 0.2);
-}
+.btn-edit { background: var(--btn-green); }
+.btn-delete { background: var(--btn-red); }
 
-.status-success {
-margin-top: 20px;
-background: rgba(16, 185, 129, 0.15);
-border: 1px solid rgba(16, 185, 129, 0.3);
-color: #4ade80;
-padding: 14px;
-border-radius: 12px;
-font-size: 14px;
-font-weight: 600;
-display: flex;
-align-items: center;
-justify-content: center;
-gap: 8px;
-animation: fadeIn 0.4s ease-in-out;
-}
-
-.footer {
-margin-top: 25px;
-font-size: 12px;
-color: #475569;
-display: flex;
-align-items: center;
-justify-content: center;
-gap: 6px;
-}
-
-@keyframes fadeIn {
-from { opacity: 0; transform: translateY(10px); }
-to { opacity: 1; transform: translateY(0); }
+@media (max-width: 768px) {
+.form-grid { grid-template-columns: 1fr; }
+.form-group.full-width { grid-column: span 1; }
 }
 </style>
 </head>
 <body>
 
 <div class="container">
-<div class="logo-icon">
-<i class="fa-solid fa-cloud-arrow-up"></i>
+
+<div class="header-title">
+🧵 Tufting Studio Manager
 </div>
 
-<h1>Cuffi Transfer</h1>
-<p>Zgjidh fotot ose videot nga telefoni për t'i dërguar menjëherë në laptop.</p>
+<!-- FORM CARD -->
+<div class="card-box">
+<form id="projectForm">
+<input type="hidden" id="editIndex" value="-1">
 
-<form action="/upload" method="post" enctype="multipart/form-data">
-<label for="file-upload" class="file-label" id="drop-zone">
-<i class="fa-solid fa-images" id="upload-icon"></i>
-<span id="label-text">Zgjidh Foto ose Video</span>
-</label>
-<input id="file-upload" type="file" name="files" multiple onchange="updateLabel()">
+<div class="form-grid">
+<div class="form-group">
+<label for="pName">Emri i Projektit</label>
+<input type="text" id="pName" placeholder="p.sh. Tase Kaffe" required>
+</div>
 
-<button type="submit" class="btn-submit">
-<span>Dërgo në Laptop</span>
-<i class="fa-solid fa-paper-plane"></i>
-</button>
+<div class="form-group">
+<label for="pYarnType">Lloji i Fijs</label>
+<select id="pYarnType">
+<option value="100% Akrilik">100% Akrilik</option>
+<option value="100% Lesh (Wolle)">100% Lesh (Wolle)</option>
+<option value="Përzierje (Mischgarne)">Përzierje (Mischgarne)</option>
+<option value="Tjetër">Tjetër</option>
+</select>
+</div>
+
+<div class="form-group">
+<label for="pFoto">Foto e Projektit (Opsionale)</label>
+<input type="file" id="pFoto" accept="image/*">
+</div>
+
+<div class="form-group full-width">
+<label for="pDetails">Ngjyrat, Kodet dhe Marka/Dyqani (Detaje)</label>
+<textarea id="pDetails" placeholder="Kuqe = 008 = Basic Soft&#10;Kafe = 44 = Superpreis"></textarea>
+</div>
+
+<div class="form-group">
+<label for="pWeight">Sasia e Fijes (gram)</label>
+<input type="text" id="pWeight" placeholder="p.sh. 500">
+</div>
+
+<div class="form-group">
+<label for="pCost">Kostoja e Materialit (€)</label>
+<input type="text" id="pCost" placeholder="p.sh. 15.50">
+</div>
+
+<div class="form-group">
+<label for="pPrice">Çmimi i Shitjes (€)</label>
+<input type="text" id="pPrice" placeholder="p.sh. 70.00">
+</div>
+</div>
+
+<button type="submit" class="btn-submit" id="btnSubmitText">+ Rregjistro Projektin</button>
 </form>
-
-{% if success %}
-<div class="status-success">
-<i class="fa-solid fa-circle-check"></i>
-<span>U dërguan me sukses në laptop!</span>
 </div>
-{% endif %}
 
-<div class="footer">
-<i class="fa-solid fa-shield-halved"></i>
-<span>Lidhje e sigurt lokale (Wi-Fi)</span>
+<!-- CATALOGUE / TABLE CARD -->
+<div class="card-box">
+<div class="card-title">📋 Katalogu i Projekteve</div>
+<div class="table-responsive">
+<table>
+<thead>
+<tr>
+<th>Foto</th>
+<th>Projekti</th>
+<th>Fija</th>
+<th>Detajet e Fijeve</th>
+<th>Pesha</th>
+<th>Kosto</th>
+<th>Çmimi</th>
+<th>Veprime</th>
+</tr>
+</thead>
+<tbody id="projectsTableBody">
+<!-- Projektet do të ngarkohen këtu dinamikisht -->
+</tbody>
+</table>
 </div>
+</div>
+
 </div>
 
 <script>
-function updateLabel() {
-const input = document.getElementById('file-upload');
-const label = document.getElementById('label-text');
-const icon = document.getElementById('upload-icon');
+let projects = JSON.parse(localStorage.getItem('myTuftingProjects')) || [];
 
-if (input.files.length > 0) {
-label.innerText = "U zgjodhën " + input.files.length + " skedarë";
-label.style.color = "#38bdf8";
-icon.className = "fa-solid fa-circle-check";
-icon.style.color = "#4ade80";
+// Funksion i posaçëm për të kompresuar dhe zvogëluar foton që të ruhet pa asnjë problem
+function compressAndConvertImage(file, callback) {
+if (!file) {
+callback("");
+return;
 }
+
+const reader = new FileReader();
+reader.readAsDataURL(file);
+reader.onload = function (e) {
+const img = new Image();
+img.src = e.target.result;
+img.onload = function () {
+const canvas = document.createElement('canvas');
+const MAX_WIDTH = 500; // Rezolucion i mjaftueshëm për parapamje
+let width = img.width;
+let height = img.height;
+
+if (width > MAX_WIDTH) {
+height = Math.round((height * MAX_WIDTH) / width);
+width = MAX_WIDTH;
 }
+
+canvas.width = width;
+canvas.height = height;
+
+const ctx = canvas.getContext('2d');
+ctx.drawImage(img, 0, 0, width, height);
+
+// Konverton foton me cilësi 70% duke e bërë skedarin shumë të lehtë
+const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+callback(compressedBase64);
+};
+img.onerror = function() {
+callback("");
+};
+};
+reader.onerror = function() {
+callback("");
+};
+}
+
+// Shfaqja e të dhënave në tabelë
+function renderProjects() {
+const tbody = document.getElementById('projectsTableBody');
+tbody.innerHTML = '';
+
+if (projects.length === 0) {
+tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#6b7280; padding:20px;">Nuk ka asnjë projekt të rregjistruar.</td></tr>`;
+return;
+}
+
+projects.forEach((item, index) => {
+const imgHtml = item.foto
+? `<img src="${item.foto}" class="img-preview" alt="Projekt">`
+: `<span class="no-img">Pa foto</span>`;
+
+tbody.innerHTML += `
+<tr>
+<td>${imgHtml}</td>
+<td><strong>${item.name}</strong></td>
+<td>${item.yarnType}</td>
+<td style="white-space: pre-line;">${item.details || '-'}</td>
+<td>${item.weight ? item.weight + ' g' : '-'}</td>
+<td>${item.cost ? item.cost + ' €' : '-'}</td>
+<td><strong>${item.price ? item.price + ' €' : '-'}</strong></td>
+<td>
+<div class="action-btns">
+<button class="btn-action btn-edit" onclick="editProject(${index})">✏️ Ndrysho</button>
+<button class="btn-action btn-delete" onclick="deleteProject(${index})">🗑️ Fshi</button>
+</div>
+</td>
+</tr>
+`;
+});
+}
+
+// Ruajtja ose përditësimi i projektit
+document.getElementById('projectForm').addEventListener('submit', function (e) {
+e.preventDefault();
+
+const editIndex = parseInt(document.getElementById('editIndex').value);
+const name = document.getElementById('pName').value;
+const yarnType = document.getElementById('pYarnType').value;
+const details = document.getElementById('pDetails').value;
+const weight = document.getElementById('pWeight').value;
+const cost = document.getElementById('pCost').value;
+const price = document.getElementById('pPrice').value;
+const fileInput = document.getElementById('pFoto');
+
+const processSave = (fotoData) => {
+const newProject = {
+name,
+yarnType,
+details,
+weight,
+cost,
+price,
+foto: fotoData || (editIndex >= 0 ? projects[editIndex].foto : "")
+};
+
+if (editIndex >= 0) {
+projects[editIndex] = newProject;
+document.getElementById('editIndex').value = "-1";
+document.getElementById('btnSubmitText').innerText = "+ Rregjistro Projektin";
+} else {
+projects.push(newProject);
+}
+
+try {
+localStorage.setItem('myTuftingProjects', JSON.stringify(projects));
+renderProjects();
+document.getElementById('projectForm').reset();
+alert("Projekti u ruajt me sukses!");
+} catch (err) {
+alert("Ndodhi një problem gjatë ruajtjes! Memoria e shfletuesit është e plotë.");
+}
+};
+
+if (fileInput.files && fileInput.files[0]) {
+compressAndConvertImage(fileInput.files[0], function (compressedBase64) {
+processSave(compressedBase64);
+});
+} else {
+processSave("");
+}
+});
+
+// Ndryshimi i një projekti
+window.editProject = function (index) {
+const p = projects[index];
+document.getElementById('pName').value = p.name;
+document.getElementById('pYarnType').value = p.yarnType;
+document.getElementById('pDetails').value = p.details || "";
+document.getElementById('pWeight').value = p.weight || "";
+document.getElementById('pCost').value = p.cost || "";
+document.getElementById('pPrice').value = p.price || "";
+document.getElementById('editIndex').value = index;
+
+document.getElementById('btnSubmitText').innerText = "💾 Ruaj Ndryshimet";
+window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// Fshirja e një projekti
+window.deleteProject = function (index) {
+if (confirm("A je i sigurt që dëshiron ta fshish këtë projekt?")) {
+projects.splice(index, 1);
+localStorage.setItem('myTuftingProjects', JSON.stringify(projects));
+renderProjects();
+}
+};
+
+// Ngarkojmë tabelën në fillim
+renderProjects();
 </script>
 
 </body>
 </html>
-"""
-
-
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(('10.255.255.255', 1))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = '127.0.0.1'
-    finally:
-        s.close()
-    return ip
-
-PORT = 5000
-LOCAL_IP = get_local_ip()
-URL = f"http://{LOCAL_IP}:{PORT}"
-
-@server_app.route('/')
-def home():
-    success = request.args.get('success', False)
-    return render_template_string(HTML_TEMPLATE, success=success)
-
-@server_app.route('/upload', methods=['POST'])
-def upload_file():
-    global stats
-    if 'files' not in request.files:
-        return redirect(url_for('home'))
-    
-    files = request.files.getlist('files')
-    for file in files:
-        if file.filename != '':
-            filepath = os.path.join(server_app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filepath)
-            
-            # Përditëso statistikat
-            size_mb = os.path.getsize(filepath) / (1024 * 1024)
-            stats["total_mb"] += size_mb
-            stats["total_transfers"] += 1
-            
-            ext = os.path.splitext(file.filename)[1].lower()
-            if ext in ['.mp4', '.mov', '.avi', '.mkv']:
-                stats["videos_today"] += 1
-            else:
-                stats["photos_today"] += 1
-
-    return redirect(url_for('home', success=True))
-
-def start_flask():
-    server_app.run(host='0.0.0.0', port=PORT, debug=False, use_reloader=False)
-
-# ==========================================
-# 2. GUI EKZAKTE SI NË FOTO (CUSTOMTKINTER)
-# ==========================================
-class CuffiTransferApp(ctk.CTk):
-    def __init__(self):
-        super().__init__()
-
-        self.title("Cuffi Transfer")
-        self.geometry("1000x680")
-        self.configure(fg_color="#090d16")
-        self.resizable(False, False)
-
-        # Main Layout Grid
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-
-        # ---------------- SIDEBAR (MAJTAS) ----------------
-        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0, fg_color="#0d1322")
-        self.sidebar.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-
-        # App Logo & Title
-        self.logo_label = ctk.CTkLabel(self.sidebar, text="☁️\nDËRGO FOTO", font=ctk.CTkFont(size=18, weight="bold"), text_color="#ffffff")
-        self.logo_label.pack(pady=(30, 5))
-        self.sub_logo = ctk.CTkLabel(self.sidebar, text="Nga telefoni në laptop", font=ctk.CTkFont(size=11), text_color="#64748b")
-        self.sub_logo.pack(pady=(0, 25))
-
-        # Navigation Buttons
-        self.btn_home = ctk.CTkButton(self.sidebar, text="🏠  Kryefaqja", fg_color="#3b82f6", text_color="white", anchor="w", height=40, font=ctk.CTkFont(size=13, weight="bold"))
-        self.btn_home.pack(fill="x", padx=15, pady=5)
-
-        self.btn_gallery = ctk.CTkButton(self.sidebar, text="🖼️  Galeria", fg_color="transparent", text_color="#94a3b8", anchor="w", height=40, hover_color="#1e293b")
-        self.btn_gallery.pack(fill="x", padx=15, pady=5)
-
-        self.btn_stats = ctk.CTkButton(self.sidebar, text="📊  Statistikat", fg_color="transparent", text_color="#94a3b8", anchor="w", height=40, hover_color="#1e293b")
-        self.btn_stats.pack(fill="x", padx=15, pady=5)
-
-        self.btn_settings = ctk.CTkButton(self.sidebar, text="⚙️  Cilësimet", fg_color="transparent", text_color="#94a3b8", anchor="w", height=40, hover_color="#1e293b")
-        self.btn_settings.pack(fill="x", padx=15, pady=5)
-
-        self.btn_about = ctk.CTkButton(self.sidebar, text="ℹ️  Rreth Programit", fg_color="transparent", text_color="#94a3b8", anchor="w", height=40, hover_color="#1e293b")
-        self.btn_about.pack(fill="x", padx=15, pady=5)
-
-        # Footer Sidebar
-        self.footer_box = ctk.CTkFrame(self.sidebar, fg_color="#131b2e", corner_radius=12)
-        self.footer_box.pack(side="bottom", fill="x", padx=15, pady=20)
-        
-        self.footer_label = ctk.CTkLabel(self.footer_box, text="Bërë me ❤️\nPython + Flask\n2026", font=ctk.CTkFont(size=11), text_color="#64748b")
-        self.footer_label.pack(pady=12)
-
-        # ---------------- MAIN CONTENT (DJAHTAS) ----------------
-        self.main_frame = ctk.CTkFrame(self, fg_color="#090d16", corner_radius=0)
-        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=25, pady=20)
-
-        # Header Title
-        self.header_title = ctk.CTkLabel(self.main_frame, text="Serveri është gati!", font=ctk.CTkFont(size=28, weight="bold"), text_color="#38bdf8")
-        self.header_title.pack(anchor="w")
-        self.header_sub = ctk.CTkLabel(self.main_frame, text="Dërgo foto dhe video nga telefoni yt në këtë laptop", font=ctk.CTkFont(size=13), text_color="#64748b")
-        self.header_sub.pack(anchor="w", pady=(2, 20))
-
-        # Main Info Box (IP, QR, Status)
-        self.info_card = ctk.CTkFrame(self.main_frame, fg_color="#131b2e", corner_radius=16, border_width=1, border_color="#1e293b")
-        self.info_card.pack(fill="x", pady=10)
-
-        # IP Address Section
-        self.ip_title = ctk.CTkLabel(self.info_card, text="Adresa për telefonin:", font=ctk.CTkFont(size=12), text_color="#64748b")
-        self.ip_title.place(x=25, y=20)
-
-        self.ip_link = ctk.CTkLabel(self.info_card, text=URL, font=ctk.CTkFont(size=18, weight="bold"), text_color="#38bdf8")
-        self.ip_link.place(x=25, y=45)
-
-        self.btn_copy = ctk.CTkButton(self.info_card, text="📋 Kopjo", width=70, height=26, fg_color="#1e293b", text_color="#e2e8f0", font=ctk.CTkFont(size=11), command=self.copy_link)
-        self.btn_copy.place(x=25, y=80)
-
-        self.ip_hint = ctk.CTkLabel(self.info_card, text="Lidhe telefonin me të njëjtin Wi-Fi\ndhe hap këtë adresë në shfletues.", font=ctk.CTkFont(size=11), text_color="#64748b", justify="left")
-        self.ip_hint.place(x=25, y=120)
-
-        # QR Code Section
-        qr_img = qrcode.make(URL).resize((110, 110))
-        self.qr_photo = ctk.CTkImage(light_image=qr_img, dark_image=qr_img, size=(110, 110))
-        self.qr_label = ctk.CTkLabel(self.info_card, image=self.qr_photo, text="")
-        self.qr_label.place(x=320, y=25)
-
-        self.qr_txt = ctk.CTkLabel(self.info_card, text="Skano me kamerën e telefonit", font=ctk.CTkFont(size=10), text_color="#64748b")
-        self.qr_txt.place(x=300, y=145)
-
-        # Right Side Info (Port & Status)
-        self.port_title = ctk.CTkLabel(self.info_card, text="Porta:", font=ctk.CTkFont(size=12), text_color="#64748b")
-        self.port_title.place(x=520, y=20)
-        
-        self.port_box = ctk.CTkLabel(self.info_card, text=str(PORT), font=ctk.CTkFont(size=13, weight="bold"), fg_color="#1e293b", width=70, height=28, corner_radius=6, text_color="#a855f7")
-        self.port_box.place(x=520, y=45)
-
-        self.status_title = ctk.CTkLabel(self.info_card, text="Statusi i serverit", font=ctk.CTkFont(size=12), text_color="#64748b")
-        self.status_title.place(x=520, y=85)
-
-        self.status_val = ctk.CTkLabel(self.info_card, text="● Serveri po funksionon", font=ctk.CTkFont(size=12, weight="bold"), text_color="#10b981")
-        self.status_val.place(x=520, y=105)
-
-        # Set fixed height for info card
-        self.info_card.configure(height=185)
-
-        # ---------------- STATS CARDS (4 KUTITË) ----------------
-        self.stats_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.stats_frame.pack(fill="x", pady=15)
-        self.stats_frame.grid_columnconfigure((0, 1, 2, 3), weight=1, uniform="stat")
-
-        # Card 1: Foto
-        self.card1 = ctk.CTkFrame(self.stats_frame, fg_color="#131b2e", corner_radius=12)
-        self.card1.grid(row=0, column=0, padx=(0, 5), sticky="ew")
-        self.lbl_p_count = ctk.CTkLabel(self.card1, text="0", font=ctk.CTkFont(size=22, weight="bold"), text_color="white")
-        self.lbl_p_count.pack(anchor="w", padx=15, pady=(10, 0))
-        ctk.CTkLabel(self.card1, text="Foto të marra\nSot", font=ctk.CTkFont(size=11), text_color="#64748b", justify="left").pack(anchor="w", padx=15, pady=(0, 10))
-
-        # Card 2: Video
-        self.card2 = ctk.CTkFrame(self.stats_frame, fg_color="#131b2e", corner_radius=12)
-        self.card2.grid(row=0, column=1, padx=5, sticky="ew")
-        self.lbl_v_count = ctk.CTkLabel(self.card2, text="0", font=ctk.CTkFont(size=22, weight="bold"), text_color="white")
-        self.lbl_v_count.pack(anchor="w", padx=15, pady=(10, 0))
-        ctk.CTkLabel(self.card2, text="Video të marra\nSot", font=ctk.CTkFont(size=11), text_color="#64748b", justify="left").pack(anchor="w", padx=15, pady=(0, 10))
-
-        # Card 3: Size
-        self.card3 = ctk.CTkFrame(self.stats_frame, fg_color="#131b2e", corner_radius=12)
-        self.card3.grid(row=0, column=2, padx=5, sticky="ew")
-        self.lbl_mb_count = ctk.CTkLabel(self.card3, text="0 MB", font=ctk.CTkFont(size=22, weight="bold"), text_color="white")
-        self.lbl_mb_count.pack(anchor="w", padx=15, pady=(10, 0))
-        ctk.CTkLabel(self.card3, text="Madhësia totale\nTë gjitha kohërat", font=ctk.CTkFont(size=11), text_color="#64748b", justify="left").pack(anchor="w", padx=15, pady=(0, 10))
-
-        # Card 4: Transfers
-        self.card4 = ctk.CTkFrame(self.stats_frame, fg_color="#131b2e", corner_radius=12)
-        self.card4.grid(row=0, column=3, padx=(5, 0), sticky="ew")
-        self.lbl_t_count = ctk.CTkLabel(self.card4, text="0", font=ctk.CTkFont(size=22, weight="bold"), text_color="white")
-        self.lbl_t_count.pack(anchor="w", padx=15, pady=(10, 0))
-        ctk.CTkLabel(self.card4, text="Dërgesa totale\nTë gjitha kohërat", font=ctk.CTkFont(size=11), text_color="#64748b", justify="left").pack(anchor="w", padx=15, pady=(0, 10))
-
-        # ---------------- FILE PATH SECTION ----------------
-        self.path_card = ctk.CTkFrame(self.main_frame, fg_color="#131b2e", corner_radius=12)
-        self.path_card.pack(fill="x", pady=10)
-
-        ctk.CTkLabel(self.path_card, text="📁 Dosja ku ruhen fotot dhe videot", font=ctk.CTkFont(size=11), text_color="#64748b").pack(anchor="w", padx=15, pady=(8, 2))
-        
-        self.path_entry = ctk.CTkEntry(self.path_card, fg_color="#090d16", border_width=0, text_color="#e2e8f0")
-        self.path_entry.insert(0, UPLOAD_FOLDER)
-        self.path_entry.pack(side="left", fill="x", expand=True, padx=(15, 10), pady=(0, 10))
-
-        self.btn_open = ctk.CTkButton(self.path_card, text="📁 Hap dosjen", fg_color="#1e293b", hover_color="#334155", width=90, command=self.open_folder)
-        self.btn_open.pack(side="right", padx=5, pady=(0, 10))
-
-        # ---------------- ACTION BUTTONS (START / STOP) ----------------
-        self.actions_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.actions_frame.pack(fill="x", pady=15)
-
-        self.btn_start = ctk.CTkButton(self.actions_frame, text="▶  Start Server", fg_color="#4f46e5", hover_color="#4338ca", font=ctk.CTkFont(size=13, weight="bold"), height=42, command=self.start_server)
-        self.btn_start.pack(side="left", expand=True, fill="x", padx=(0, 5))
-
-        self.btn_stop = ctk.CTkButton(self.actions_frame, text="⏹  Stop Server", fg_color="#1e293b", hover_color="#991b1b", text_color="#ef4444", font=ctk.CTkFont(size=13, weight="bold"), height=42)
-        self.btn_stop.pack(side="left", expand=True, fill="x", padx=5)
-
-        self.btn_restart = ctk.CTkButton(self.actions_frame, text="🔄  Rinis Serverin", fg_color="#1e293b", hover_color="#334155", font=ctk.CTkFont(size=13), height=42)
-        self.btn_restart.pack(side="left", expand=True, fill="x", padx=5)
-
-        self.btn_browser = ctk.CTkButton(self.actions_frame, text="↗  Hape në Laptop", fg_color="#1e293b", hover_color="#334155", font=ctk.CTkFont(size=13), height=42, command=self.open_browser)
-        self.btn_browser.pack(side="left", expand=True, fill="x", padx=(5, 0))
-
-        # Footer Status Bar
-        self.status_bar = ctk.CTkLabel(self.main_frame, text="🛡️ Gati për të marrë fotot nga telefoni!", font=ctk.CTkFont(size=11), text_color="#10b981")
-        self.status_bar.pack(side="left", pady=10)
-
-        # Clock
-        self.time_lbl = ctk.CTkLabel(self.main_frame, text="", font=ctk.CTkFont(size=11), text_color="#64748b")
-        self.time_lbl.pack(side="right", pady=10)
-        self.update_clock()
-
-        # Start Flask Automatically
-        self.start_server()
-        self.update_gui_stats()
-
-    def copy_link(self):
-        self.clipboard_clear()
-        self.clipboard_append(URL)
-
-    def open_folder(self):
-        os.startfile(UPLOAD_FOLDER)
-
-    def open_browser(self):
-        import webbrowser
-        webbrowser.open(URL)
-
-    def start_server(self):
-        threading.Thread(target=start_flask, daemon=True).start()
-
-    def update_clock(self):
-        now = datetime.datetime.now().strftime("%H:%M:%S")
-        self.time_lbl.configure(text=f"🕒 {now}")
-        self.after(1000, self.update_clock)
-
-    def update_gui_stats(self):
-        self.lbl_p_count.configure(text=str(stats["photos_today"]))
-        self.lbl_v_count.configure(text=str(stats["videos_today"]))
-        self.lbl_mb_count.configure(text=f"{stats['total_mb']:.1f} MB")
-        self.lbl_t_count.configure(text=str(stats["total_transfers"]))
-        self.after(2000, self.update_gui_stats)
-
-if __name__ == "__main__":
-    app = CuffiTransferApp()
-    app.mainloop()
-
